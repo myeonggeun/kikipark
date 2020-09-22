@@ -59,7 +59,7 @@ framework.on("spawn", (bot, id, actorId) => {
 
 //Process incoming messages
 let number = 0;
-let qList = [];
+//let qList = [];
 let responded = false;
 /* On mention with command
 ex User enters @botname help, the bot will write back in markdown
@@ -234,6 +234,7 @@ framework.hears("Q", function (bot, trigger) {
   console.log(`Question:  ${trigger.text}`);
 
   console.log(typeof trigger.text);
+  console.log(trigger.message.html);
   var all_message = trigger.text;
   var question = all_message.slice(11);
   console.log(question);
@@ -241,7 +242,7 @@ framework.hears("Q", function (bot, trigger) {
   number = number + 1;
   var Q = "Q" + String(number);
   console.log(Q);
-
+  /* 
   qList.push(Q);
   console.log(qList);
 
@@ -249,6 +250,23 @@ framework.hears("Q", function (bot, trigger) {
   console.log(bot.recall(Q));
   bot.recall(Q).then(function (result) {
     bot.say(`Hello ${result}`);
+  });
+  */
+
+  bot
+    .recall("qList")
+    .then(function (result) {
+      result.push(question);
+      console.log(result);
+    })
+    .catch((e) => {
+      console.log(`qList does not exist, ${e.messages}`);
+      console.log("we will make new qList array");
+      bot.store("qList", [question]);
+    });
+
+  bot.recall("qList").then(function (result) {
+    console.log(result);
   });
 
   responded = true;
@@ -281,6 +299,7 @@ framework.hears("RecallAll", function (bot, trigger) {
 
 framework.hears(/.*/, function (bot, trigger) {
   // This will fire for any input so only respond if we haven't already
+
   if (!responded) {
     console.log(`catch-all handler fired for user input: ${trigger.text}`);
     bot
