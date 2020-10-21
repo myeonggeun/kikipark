@@ -1,5 +1,5 @@
 //Webex Bot Starter - featuring the webex-node-bot-framework - https://www.npmjs.com/package/webex-node-bot-framework
-
+require("dotenv").config();
 var framework = require("webex-node-bot-framework");
 var webhook = require("webex-node-bot-framework/webhook");
 var express = require("express");
@@ -8,6 +8,9 @@ var app = express();
 app.use(bodyParser.json());
 app.use(express.static("images"));
 const config = require("./config.json");
+const { xor } = require("lodash");
+const { QuickScore } = require("quick-score");
+const quickScore = require("quick-score").quickScore;
 
 // init framework
 var framework = new framework(config);
@@ -181,8 +184,7 @@ let cardJSON = {
               text: "And your email goes here!",
               size: "small",
               horizontalAlignment: "Center",
-              isSubtle: true,
-              wrap: false,
+              wrap: true,
             },
           ],
         },
@@ -232,10 +234,12 @@ framework.hears("reply", function (bot, trigger) {
 
 framework.hears("Q", function (bot, trigger) {
   console.log(`Question:  ${trigger.text}`);
-
+  console.log(trigger.message);
+  console.log(trigger.message.text);
+  console.log(trigger.message.id);
   console.log(typeof trigger.text);
-  console.log(trigger.message.html);
-  var all_message = trigger.text;
+
+  var all_message = trigger.message.text;
   var question = all_message.slice(11);
   console.log(question);
 
@@ -267,29 +271,75 @@ framework.hears("Q", function (bot, trigger) {
 
   bot.recall("qList").then(function (result) {
     console.log(result);
+    quickstart();
   });
 
   responded = true;
 });
 
-framework.hears("RecallQ", function (bot, trigger) {
+framework.hears("R", function (bot, trigger) {
+  console.log(trigger.message);
+  console.log(trigger.message.text);
+  console.log(trigger.message.id);
+  console.log(trigger.message.parentId);
+
+  qMessage = trigger.message.parentId;
+
+  bot
+    .recall("rList")
+    .then(function (result) {
+      result.push(trigger.message);
+      console.log(result);
+    })
+    .catch((e) => {
+      console.log(`rList does not exist, ${e.messages}`);
+      console.log("we will make new rList array");
+      bot.store("rList", [trigger.message]);
+    });
+
+  bot.recall("rList").then(function (result) {
+    console.log(result);
+  });
+
+  responded = true;
+});
+
+framework.hears("QS", function (bot, trigger) {
   var all_message = trigger.text;
   console.log(all_message);
-  var RecallQ = all_message.slice(17);
-  console.log(RecallQ);
-  bot.recall(RecallQ).then(function (result) {
-    bot.say(`${result}`);
+  var keyword = all_message.slice(12);
+  console.log(keyword);
+  var sList = [];
+
+  bot.recall("qList").then(function (result) {
+    let qs = new QuickScore(result);
+    let qResults = qs.search(keyword);
+    console.log(qResults);
+    console.log(qResults[0].item);
+    //qResults.map((x) => bot.say(`${qResults[x].item}`));
+    bot.say(`Hello ${qResults[0].item}`);
+
+    let avatar = trigger.person.avatar;
+
+    cardJSON.body[0].columns[0].items[0].url = avatar
+      ? avatar
+      : `${config.webhookUrl}/missing-avatar.jpg`;
+    cardJSON.body[0].columns[0].items[1].text = trigger.person.displayName;
+    cardJSON.body[0].columns[0].items[2].text = qResults[0].item;
+    bot.sendCard(
+      cardJSON,
+      "This is customizable fallback text for clients that do not support buttons & cards"
+    );
   });
 
   responded = true;
 });
 
 framework.hears("RecallAll", function (bot, trigger) {
-  qList.map((x) =>
-    bot.recall(x).then(function (result) {
-      bot.say(`${result}`);
-    })
-  );
+  bot.recall("qList").then(function (result) {
+    console.log(result);
+    result.map((x) => bot.say(`${x}`));
+  });
 
   responded = true;
 });
@@ -327,6 +377,29 @@ function sendHelp(bot) {
       "8. **Q** (to add question)"
   );
 }
+
+const quickstart = async function () {
+  const language = require("@google-cloud/language");
+
+  // Instantiates a client
+  const client = new language.LanguageServiceClient();
+
+  // The text to analyze
+  const text = "Hello, world!";
+
+  const document = {
+    content: text,
+    type: "PLAIN_TEXT",
+  };
+
+  // Detects the sentiment of the text
+  const [result] = await client.analyzeSentiment({ document: document });
+  const sentiment = result.documentSentiment;
+
+  console.log(`Text: ${text}`);
+  console.log(`Sentiment score: ${sentiment.score}`);
+  console.log(`Sentiment magnitude: ${sentiment.magnitude}`);
+};
 
 //Server config & housekeeping
 // Health Check
